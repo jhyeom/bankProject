@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.bank.db.mapper.bankMapper">
+    <select id="getAll" resultType="java.util.HashMap">
+        SELECT * FROM Test
+    </select>
+    <select id="getAPI1" resultType="java.util.HashMap">
+    	SELECT year, c.name, a.acctNO, sumAmt
+		FROM(
+			SELECT YEAR, ACCTNO, sumAmt 
+				,CASE @GROUPING WHEN YEAR THEN @RANK := @RANK + 1 ELSE @RANK := 1 END AS RANKING
+			      ,@GROUPING := YEAR
+				FROM (	
+					SELECT SUBSTRING(TRAN_DATE,1,4) AS YEAR ,ACCTNO, SUM(TRAN_AMT-TRAN_FEE) AS sumAmt 
+					FROM TRAN_LIST
+					WHERE CANCEL_YN='N'
+					GROUP BY SUBSTRING(TRAN_DATE,1,4),ACCTNO 
+					) A, (SELECT @GROUPING := '', @RANK := 0) XX
+					
+			ORDER BY YEAR, SUMAMT DESC
+		) A
+		JOIN account C
+		ON A.ACCTNO = C.acctNo
+		WHERE RANKING=1
+    </select>
+    <select id="getAPI2" resultType="java.util.HashMap">
+    	SELECT B.year, A.acctNo, A.name 
+			FROM(
+				SELECT acctNo, NAME,'1' AS TMP FROM ACCOUNT) A
+				JOIN (SELECT DISTINCT SUBSTRING(tran_date,1,4) AS year, '1' AS TMP 
+						FROM TRAN_LIST) B
+			ON A.TMP = B.TMP
+			LEFT OUTER JOIN (SELECT SUBSTRING(TRAN_DATE,1,4) AS year ,ACCTNO,  COUNT(*) 
+									FROM TRAN_LIST 
+									WHERE CANCEL_YN='N'
+									GROUP BY SUBSTRING(TRAN_DATE,1,4), ACCTNO 
+									) C
+			ON A.ACCTNO = C.ACCTNO AND B.year = C.year
+			WHERE C.year IS NULL
+			AND B.year IN ('2018','2019')
+    </select>
+    <select id="getAPI3" parameterType="java.lang.String" resultType="java.util.HashMap">
+    	SELECT year, brCODE, SUM(totAmt) AS sumAmt 
+    	FROM (
+				SELECT SUBSTRING(T.tran_date,1,4) AS YEAR ,T.tran_date, (T.TRAN_AMT- T.TRAN_FEE) AS totAmt, A.ACCTNO, A.BRCODE 
+				FROM TRAN_LIST T
+				JOIN ACCOUNT A
+				ON T.ACCTNO = A.ACCTNO
+				WHERE T.CANCEL_YN ='N'
+				AND SUBSTRING(T.tran_date,1,4)=#{year}) A
+		GROUP BY YEAR, BRCODE
+		ORDER BY SUM(totAmt)	DESC	
+    </select>
+    <select id="getAPI4" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+    	SELECT C.brCode, C.brName, SUM(TRAN_AMT-TRAN_FEE) AS sumAmt 
+		FROM ACCOUNT A
+			JOIN TRAN_LIST  B
+			ON A.ACCTNO = B.ACCTNO
+			JOIN BRANCH C
+			ON CASE WHEN A.brCode = 'B' THEN 'A' ELSE A.brCode END =  C.brCode
+		WHERE CANCEL_YN='N'
+			AND C.BRNAME =#{brName}
+		GROUP BY C.BRCODE, C.BRNAME
+    </select>
+</mapper>
+
+
